@@ -1,0 +1,25 @@
+name: Bot health check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check bot health endpoint
+        env:
+          BOT_HEALTH_URL: ${{ secrets.BOT_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BOT_HEALTH_URL:-}" ]; then
+            echo "BOT_HEALTH_URL is not configured; skipping health check."
+            exit 0
+          fi
+          curl --fail --show-error --silent --max-time 20 \
+            "${BOT_HEALTH_URL%/}/health"

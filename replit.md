@@ -20,5 +20,16 @@ directories unchanged.
 `CWALLET_ID`, `SUPPORT_USERNAME_1`, `SUPPORT_USERNAME_2`, `OTP_REGEX`,
 `AUTO_CANCEL_SECONDS`, `DEFAULT_USDT_RATE`, and `DEFAULT_SUPPORT_URL`.
 
-When `USE_PREMIUM_EMOJIS` is enabled, also provide all
-`PREMIUM_EMOJI_*` variables listed in `.env.example`.
+Custom premium emojis are disabled by default, so the bot works with a
+standard Telegram account. Set `USE_PREMIUM_EMOJIS=1` only when the bot
+account can use the configured `PREMIUM_EMOJI_*` IDs.
+
+The bot exposes:
+
+- `/` — basic liveness response
+- `/health` — JSON status including Telegram connection state
+
+The process reconnects automatically after transient Telegram or network
+disconnects. A GitHub Actions scheduled health check can monitor `/health`,
+but GitHub Actions is not a permanent process host; use the Render worker
+defined in `render.yaml` (or another always-on host) for 24/7 execution.

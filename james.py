@@ -95,7 +95,9 @@ DEFAULT_USDT_RATE = os.getenv("DEFAULT_USDT_RATE", "94.0")
 DEFAULT_SUPPORT_URL = os.getenv("DEFAULT_SUPPORT_URL", "https://t.me/tgtelehelpbot")
 
 # ================= PREMIUM EMOJIS =================
-USE_PREMIUM_EMOJIS = os.getenv("USE_PREMIUM_EMOJIS", "1").strip().lower() not in {"0", "false", "no", "off"}
+# Premium custom emoji document IDs are optional. Keep the default compatible
+# with ordinary Telegram accounts; enable them explicitly when available.
+USE_PREMIUM_EMOJIS = os.getenv("USE_PREMIUM_EMOJIS", "0").strip().lower() not in {"0", "false", "no", "off"}
 PREMIUM_EMOJIS = {
     "heart_fire": os.getenv("PREMIUM_EMOJI_HEART_FIRE", "5042225965518816316"),
     "lightning": os.getenv("PREMIUM_EMOJI_LIGHTNING", "5042334757040423886"),
@@ -3132,10 +3134,32 @@ async def handle_callback_query(e):
 
     except Exception as ex: print(f"Callback Error: {ex}")
 
+async def health_handler(request):
+    """Small liveness/readiness endpoint for Render and external monitors."""
+    connected = bot.is_connected()
+    return web.json_response(
+        {
+            "status": "ok" if connected else "degraded",
+            "bot_connected": connected,
+            "timestamp": int(time.time()),
+        }
+    )
+
+
+async def ensure_bot_connected():
+    """Reconnect after a transient Telegram/network disconnect."""
+    if bot.is_connected():
+        return
+    start_result = bot.start(bot_token=BOT_TOKEN)
+    if asyncio.iscoroutine(start_result):
+        await start_result
+
+
 async def main():
     port = int(os.getenv("PORT", "10000"))
     app = web.Application()
     app.router.add_get("/", lambda request: web.Response(text="OK"))
+    app.router.add_get("/health", health_handler)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
@@ -3148,12 +3172,25 @@ async def main():
     print(f"✅ Admins: {ADMIN_IDS}")
     print(f"✅ Support: @{SUPPORT_USERNAME_1} & @{SUPPORT_USERNAME_2}")
     print("=" * 50)
+    reconnect_delay = 5
     try:
-        await bot.run_until_disconnected()
+        while True:
+            try:
+                await ensure_bot_connected()
+                logger.info("Telegram bot connected.")
+                await bot.run_until_disconnected()
+                logger.warning("Telegram bot disconnected; reconnecting in %ss.", reconnect_delay)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception:
+                logger.exception("Telegram connection dropped; reconnecting in %ss.", reconnect_delay)
+            await asyncio.sleep(reconnect_delay)
+            reconnect_delay = min(reconnect_delay * 2, 60)
     finally:
         await runner.cleanup()
+        if bot.is_connected():
+            await bot.disconnect()
 
 if __name__ == '__main__':
-    bot.start(bot_token=BOT_TOKEN)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())

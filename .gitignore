@@ -1,0 +1,19 @@
+# Secrets and local configuration
+.env
+
+# Telethon session files contain authentication state
+*.session
+*.session-journal
+
+# Runtime data
+*.db
+*.db-*
+sessions/
+screenshots/
+
+# Python cache and local tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
