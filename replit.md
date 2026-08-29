@@ -24,12 +24,13 @@ Custom premium emojis are disabled by default, so the bot works with a
 standard Telegram account. Set `USE_PREMIUM_EMOJIS=1` only when the bot
 account can use the configured `PREMIUM_EMOJI_*` IDs.
 
-The bot exposes:
+The bot runs as a Render web service so its health endpoint is reachable:
 
 - `/` — basic liveness response
 - `/health` — JSON status including Telegram connection state
 
 The process reconnects automatically after transient Telegram or network
 disconnects. A GitHub Actions scheduled health check can monitor `/health`,
-but GitHub Actions is not a permanent process host; use the Render worker
-defined in `render.yaml` (or another always-on host) for 24/7 execution.
+and the workflow uses the `BOT_HEALTH_URL` GitHub Actions secret when it is
+configured. GitHub Actions is not a permanent process host; the Render web
+service defined in `render.yaml` is the process host.

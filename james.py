@@ -3142,7 +3142,8 @@ async def health_handler(request):
             "status": "ok" if connected else "degraded",
             "bot_connected": connected,
             "timestamp": int(time.time()),
-        }
+        },
+        status=200 if connected else 503,
     )
 
 
