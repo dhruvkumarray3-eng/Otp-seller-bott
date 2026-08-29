@@ -32,5 +32,6 @@ The bot runs as a Render web service so its health endpoint is reachable:
 The process reconnects automatically after transient Telegram or network
 disconnects. A GitHub Actions scheduled health check can monitor `/health`,
 and the workflow uses the `BOT_HEALTH_URL` GitHub Actions secret when it is
-configured. GitHub Actions is not a permanent process host; the Render web
+configured. Pushing to `main` triggers Render auto-deploy when this Blueprint
+is connected. GitHub Actions is not a permanent process host; the Render web
 service defined in `render.yaml` is the process host.
