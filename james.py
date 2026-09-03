@@ -14,7 +14,7 @@ import json
 from datetime import datetime
 from urllib.parse import quote
 
-from telethon import TelegramClient, events, Button
+from telethon import TelegramClient, events, Button as TelegramButton
 from telethon.errors import (
     SessionPasswordNeededError, 
     MessageNotModifiedError,
@@ -25,6 +25,52 @@ from telethon.errors import (
 from telethon.tl.types import ReplyKeyboardMarkup, KeyboardButtonRow, KeyboardButton, InputPhoto
 from telethon.tl.functions.channels import GetParticipantRequest
 from telethon.tl.functions.account import GetPasswordRequest
+
+# ================= COLORFUL BUTTON SYSTEM =================
+# Telegram does not expose button background colors to bots. We mirror the
+# reference bot's visual logic with clear color-coded emoji prefixes:
+# blue = navigation/info, green = actions/confirmation, red = cancel/destructive.
+BUTTON_COLOR_PREFIXES = {
+    "primary": "🔵",
+    "success": "🟢",
+    "danger": "🔴",
+}
+BUTTON_DANGER_WORDS = (
+    "cancel", "reject", "delete", "remove", "stop", "disable", "logout",
+    "close", "ban", "clear", "no", "back",
+)
+BUTTON_SUCCESS_WORDS = (
+    "accept", "confirm", "approve", "buy", "add", "deposit", "join",
+    "verify", "submit", "pay", "enable", "next", "save", "start", "retry",
+)
+
+def colorize_button_text(text, style=None):
+    """Add a consistent visual color marker without changing button actions."""
+    value = str(text)
+    if value.startswith(tuple(BUTTON_COLOR_PREFIXES.values())):
+        return value
+    lowered = value.lower()
+    if style is None:
+        if any(re.search(rf"\b{re.escape(word)}\b", lowered) for word in BUTTON_DANGER_WORDS):
+            style = "danger"
+        elif any(re.search(rf"\b{re.escape(word)}\b", lowered) for word in BUTTON_SUCCESS_WORDS):
+            style = "success"
+        else:
+            style = "primary"
+    return f"{BUTTON_COLOR_PREFIXES.get(style, BUTTON_COLOR_PREFIXES['primary'])} {value}"
+
+class ColorButtonFactory:
+    """Drop-in Button facade so every inline/URL button gets a color marker."""
+
+    @staticmethod
+    def inline(text, data, *args, **kwargs):
+        return TelegramButton.inline(colorize_button_text(text), data, *args, **kwargs)
+
+    @staticmethod
+    def url(text, url, *args, **kwargs):
+        return TelegramButton.url(colorize_button_text(text), url, *args, **kwargs)
+
+Button = ColorButtonFactory
 
 # ================= CONFIGURATION =================
 def load_env_file(path=".env"):
@@ -95,9 +141,9 @@ DEFAULT_USDT_RATE = os.getenv("DEFAULT_USDT_RATE", "94.0")
 DEFAULT_SUPPORT_URL = os.getenv("DEFAULT_SUPPORT_URL", "https://t.me/tgtelehelpbot")
 
 # ================= PREMIUM EMOJIS =================
-# Premium custom emoji document IDs are optional. Keep the default compatible
-# with ordinary Telegram accounts; enable them explicitly when available.
-USE_PREMIUM_EMOJIS = os.getenv("USE_PREMIUM_EMOJIS", "0").strip().lower() not in {"0", "false", "no", "off"}
+# Premium emoji rendering is on by default. It remains configurable for
+# deployments whose bot account cannot render the configured custom IDs.
+USE_PREMIUM_EMOJIS = os.getenv("USE_PREMIUM_EMOJIS", "1").strip().lower() not in {"0", "false", "no", "off"}
 PREMIUM_EMOJIS = {
     "heart_fire": os.getenv("PREMIUM_EMOJI_HEART_FIRE", "5042225965518816316"),
     "lightning": os.getenv("PREMIUM_EMOJI_LIGHTNING", "5042334757040423886"),
@@ -406,6 +452,13 @@ def get_support_url():
     res = cur.execute("SELECT value FROM settings WHERE key='support_url'").fetchone()
     url = res[0] if res and res[0] else DEFAULT_SUPPORT_URL
     return fix_url(url)
+
+def get_channel_links():
+    """Return the current public channel links, with an admin-editable override."""
+    raw = get_setting("channel_links")
+    if raw is None:
+        return JOIN_URLS
+    return [fix_url(item) for item in raw.split(",") if item.strip()]
 
 def get_setting(key, default=None):
     row = cur.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
@@ -717,18 +770,21 @@ async def log_primary_purchase(uid, country, price, amount, year, qty):
 # ================= MENU HELPERS =================
 def get_persistent_menu(uid):
     rows = [
-        [KeyboardButton("🛒 Buy Account"), KeyboardButton("👤 My Profile")],
-        [KeyboardButton("📁 Buy Sessions")],
-        [KeyboardButton("💰 Deposit"), KeyboardButton("📊 My Stats")],
-        [KeyboardButton("📞 Support")]
+        [KeyboardButton(colorize_button_text("🛒 Buy Account", "success")),
+         KeyboardButton(colorize_button_text("👤 My Profile", "primary"))],
+        [KeyboardButton(colorize_button_text("📁 Buy Sessions", "success"))],
+        [KeyboardButton(colorize_button_text("💰 Deposit", "success")),
+         KeyboardButton(colorize_button_text("📊 My Stats", "primary"))],
+        [KeyboardButton(colorize_button_text("📞 Support", "primary"))]
     ]
-    if is_admin(uid): rows.append([KeyboardButton("🔐 Admin Panel")])
+    if is_admin(uid):
+        rows.append([KeyboardButton(colorize_button_text("🔐 Admin Panel", "danger"))])
     return ReplyKeyboardMarkup([KeyboardButtonRow(r) for r in rows], resize=True)
 
 def get_terms_buttons():
     return [
         [Button.url("📜 Read Terms & Conditions", get_terms_url())],
-        [Button.inline("✅ Accept", "tc_accept"), Button.inline("❌ Reject", "tc_reject")]
+        [Button.inline("✅ Accept & Continue", "tc_accept"), Button.inline("❌ Reject", "tc_reject")]
     ]
 
 def get_support_buttons():
@@ -737,22 +793,23 @@ def get_support_buttons():
         [Button.url(f"📩 @{SUPPORT_USERNAME_2}", f"https://t.me/{SUPPORT_USERNAME_2}")],
         [Button.url("📜 Terms & Conditions", get_terms_url())]
     ]
-    if JOIN_URLS and JOIN_URLS[0]:
+    channel_links = get_channel_links()
+    if channel_links and channel_links[0]:
         try:
-            buttons.append([Button.url("📢 Channel", fix_url(JOIN_URLS[0]))])
+            buttons.append([Button.url("📢 Official Channel", channel_links[0])])
         except Exception:
             pass
     return buttons
 
 def get_join_buttons():
     buttons = []
-    for i, link in enumerate(JOIN_URLS):
+    for i, link in enumerate(get_channel_links()):
         if link:
             try:
-                buttons.append([Button.url(f"📢 Join Channel {i+1}", fix_url(link))])
+                buttons.append([Button.url(f"📢 Join Channel {i+1}", link)])
             except Exception:
                 pass
-    buttons.append([Button.inline("✅ I've Joined – Verify", "verify_join")])
+    buttons.append([Button.inline("✅ I've Joined — Verify", "verify_join")])
     return buttons
 
 async def send_main_menu(event, uid):
@@ -1621,11 +1678,13 @@ async def general_settings_menu(event):
     msg = (f"⚙️ <b>General Settings</b>\n\n"
            f"🔗 Support URL: <code>{html.escape(get_support_url())}</code>\n"
            f"📜 Terms URL: <code>{html.escape(get_terms_url())}</code>\n"
+           f"📢 Channel links: <b>{len(get_channel_links())}</b> configured\n"
            f"💱 USDT rate: <b>{get_usdt_rate()}</b> INR\n"
            f"⏱ Auto-cancel: <b>{get_auto_cancel_seconds()}</b> seconds")
     buttons = [
         [Button.inline("🔗 Support URL", "adm_setting_edit|support_url")],
         [Button.inline("📜 Terms URL", "adm_setting_edit|terms_url")],
+        [Button.inline("📢 Update Channel Links", "adm_setting_edit|channel_links")],
         [Button.inline("💱 USDT Rate", "adm_setting_edit|usdt_rate")],
         [Button.inline("⏱ Auto-cancel Seconds", "adm_setting_edit|auto_cancel_seconds")],
         [Button.inline("◀️ Back", "adm_adminmain")]
@@ -2102,12 +2161,13 @@ async def admin_actions(event):
         if not has_perm(uid, 'p_settings'):
             return await event.answer("Not authorized.", alert=True)
         setting_name = action_data.split("|", 1)[1]
-        if setting_name not in {"support_url", "terms_url", "usdt_rate", "auto_cancel_seconds"}:
+        if setting_name not in {"support_url", "terms_url", "channel_links", "usdt_rate", "auto_cancel_seconds"}:
             return await event.answer("Invalid setting.", alert=True)
         admin_content_state[uid] = {"type": "general_setting", "name": setting_name}
         labels = {
             "support_url": "Support URL (http:// or https://)",
             "terms_url": "Terms URL (http:// or https://)",
+            "channel_links": "channel URLs, comma-separated (http:// or https://)",
             "usdt_rate": "USDT rate in INR (positive number)",
             "auto_cancel_seconds": "Auto-cancel seconds (at least 1)"
         }
@@ -2645,20 +2705,19 @@ async def handle_start(e):
                     cur.execute("UPDATE users SET referred_by=? WHERE user_id=? AND referred_by IS NULL", (int(ref), uid))
                     db.commit()
 
-        is_joined = await check_channel_joined(uid)
-        if not is_joined:
-            msg = ("🔒 Access Required\n\n"
-                   "To use this bot, please join our official channel(s) below.\n\n"
-                   "📢 Join the channel(s), then tap:\n"
-                   "✅ I've Joined – Verify\n\n"
-                   "Thank you for supporting us ❤️")
-            return await e.respond(msg, buttons=get_join_buttons())
-
         row = cur.execute("SELECT terms_accepted FROM users WHERE user_id=?", (uid,)).fetchone()
         terms_acc = row[0] if row else 0
         if not terms_acc:
-            msg = f"{PE_FLOWER} <b>TERMS & CONDITIONS</b>\nPlease read and accept our Terms & Conditions before using the bot."
+            msg = (f"{PE_FLOWER} <b>STEP 1/2 — TERMS & CONDITIONS</b>\n\n"
+                   f"Please read and accept our Terms & Conditions before using the bot.")
             return await e.respond(msg, buttons=get_terms_buttons())
+
+        is_joined = await check_channel_joined(uid)
+        if not is_joined:
+            msg = ("🔒 <b>STEP 2/2 — JOIN REQUIRED</b>\n\n"
+                   "Join our official channel(s) below, then tap Verify to continue.\n\n"
+                   "Thank you for supporting us ❤️")
+            return await e.respond(msg, buttons=get_join_buttons())
 
         await send_main_menu(e, uid)
     except Exception as ex: 
@@ -2750,6 +2809,11 @@ async def handle_all_messages(e):
                     if name in {"support_url", "terms_url"}:
                         if not re.match(r"^https?://[^\s]+$", value, re.IGNORECASE):
                             raise ValueError
+                    elif name == "channel_links":
+                        links = [item.strip() for item in value.split(",") if item.strip()]
+                        if not links or any(not re.match(r"^https?://[^\s]+$", item, re.IGNORECASE) for item in links):
+                            raise ValueError
+                        value = ",".join(links)
                     elif name == "usdt_rate":
                         if float(value) <= 0:
                             raise ValueError
@@ -2917,14 +2981,15 @@ async def handle_callback_query(e):
         data = e.data.decode()
 
         if data == "verify_join":
-            if not await check_channel_joined(uid): return await e.answer("⚠️ You must join the channels first!", alert=True)
             row = cur.execute("SELECT terms_accepted FROM users WHERE user_id=?", (uid,)).fetchone()
             terms = row[0] if row else 0
             if not terms:
-                msg = f"{PE_FLOWER} <b>TERMS & CONDITIONS</b>\nPlease read and accept our Terms & Conditions before using the bot."
+                msg = (f"{PE_FLOWER} <b>STEP 1/2 — TERMS & CONDITIONS</b>\n\n"
+                       "Please read and accept our Terms & Conditions first.")
                 try: await e.edit(msg, buttons=get_terms_buttons())
                 except MessageNotModifiedError: pass
                 return
+            if not await check_channel_joined(uid): return await e.answer("⚠️ You must join the channels first!", alert=True)
             await send_main_menu(e, uid)
 
         elif data == "tc_accept":
@@ -3146,6 +3211,29 @@ async def health_handler(request):
         status=200 if connected else 503,
     )
 
+async def ping_handler(request):
+    """Always-on liveness endpoint used to keep free web hosts warm."""
+    return web.Response(text="OK", content_type="text/plain")
+
+async def keep_alive_loop(port):
+    """Keep the web service warm and refresh the Telegram connection periodically."""
+    await asyncio.sleep(30)
+    while True:
+        try:
+            await ensure_bot_connected()
+            await bot.get_me()
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(f"http://127.0.0.1:{port}/ping") as response:
+                    if response.status != 200:
+                        logger.warning("Keep-alive ping returned HTTP %s.", response.status)
+            logger.info("Heartbeat: bot alive.")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Heartbeat check failed; reconnect loop will retry.")
+        await asyncio.sleep(180)
+
 
 async def ensure_bot_connected():
     """Reconnect after a transient Telegram/network disconnect."""
@@ -3160,12 +3248,14 @@ async def main():
     port = int(os.getenv("PORT", "10000"))
     app = web.Application()
     app.router.add_get("/", lambda request: web.Response(text="OK"))
+    app.router.add_get("/ping", ping_handler)
     app.router.add_get("/health", health_handler)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     print(f"✅ Health server listening on 0.0.0.0:{port}")
+    heartbeat_task = asyncio.create_task(keep_alive_loop(port))
 
     print("=" * 50)
     print("✅ ULTIMATE ADVANCED HTML BOT STARTED SUCCESSFULLY")
@@ -3188,6 +3278,11 @@ async def main():
             await asyncio.sleep(reconnect_delay)
             reconnect_delay = min(reconnect_delay * 2, 60)
     finally:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
         await runner.cleanup()
         if bot.is_connected():
             await bot.disconnect()

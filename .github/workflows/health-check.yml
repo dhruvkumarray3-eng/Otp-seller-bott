@@ -3,7 +3,7 @@ name: Bot health check
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: read
@@ -12,7 +12,7 @@ jobs:
   health-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Check bot health endpoint
+      - name: Keep bot warm
         env:
           BOT_HEALTH_URL: ${{ secrets.BOT_HEALTH_URL }}
         run: |
@@ -21,5 +21,7 @@ jobs:
             echo "BOT_HEALTH_URL is not configured; skipping health check."
             exit 0
           fi
+          curl --fail --show-error --silent --max-time 20 \
+            "${BOT_HEALTH_URL%/}/ping"
           curl --fail --show-error --silent --max-time 20 \
             "${BOT_HEALTH_URL%/}/health"

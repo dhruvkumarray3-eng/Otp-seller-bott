@@ -72,3 +72,9 @@ services:
         sync: false
       - key: PREMIUM_EMOJI_DEVIL
         sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_REPO_URL
+        sync: false
+      - key: GITHUB_PUSH_BRANCH
+        value: main
