@@ -132,8 +132,8 @@ CWALLET_QR = os.getenv("CWALLET_QR", "https://files.catbox.moe/m5c01u.jpg")
 CWALLET_ID = os.getenv("CWALLET_ID", "your_cwallet_id_here")
 
 # ========== SUPPORT CONTACTS ==========
-SUPPORT_USERNAME_1 = os.getenv("SUPPORT_USERNAME_1", "Your_cuteexd")
-SUPPORT_USERNAME_2 = os.getenv("SUPPORT_USERNAME_2", "Know_Your_Papa")
+SUPPORT_USERNAME_1 = os.getenv("SUPPORT_USERNAME_1", "Your_cuteexd").strip().lstrip("@")
+SUPPORT_USERNAME_2 = os.getenv("SUPPORT_USERNAME_2", "Know_Your_Papa").strip().lstrip("@")
 
 OTP_REGEX = os.getenv("OTP_REGEX", r"\b\d{4,8}\b")
 AUTO_CANCEL_SECONDS = env_int("AUTO_CANCEL_SECONDS", 600)
