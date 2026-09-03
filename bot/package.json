@@ -1,0 +1,10 @@
+{
+  "name": "@workspace/github-workflow-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "check": "node --check src/index.mjs && node --check src/config.mjs && node --check src/buttons.mjs && node --check src/github.mjs"
+  }
+}
