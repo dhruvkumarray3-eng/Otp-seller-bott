@@ -12,7 +12,7 @@ import shutil
 import html
 import json
 from datetime import datetime
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from telethon import TelegramClient, events, Button as TelegramButton
 from telethon.errors import (
@@ -118,10 +118,8 @@ REQUIRED_CHANNELS = env_list("REQUIRED_CHANNELS", os.getenv("CHECK_CHANNELS", "-
 JOIN_URLS = env_list("JOIN_URLS", "https://t.me/moviesmasterupdates")
 
 # ========== LINKS & MEDIA ==========
-TERMS_URL = os.getenv(
-    "TERMS_URL",
-    "https://james-xdd.github.io/Terms-And-Conditions/James.html"
-)
+DEFAULT_TERMS_URL = "https://james-xdd.github.io/Terms-And-Conditions/James.html"
+TERMS_URL = os.getenv("TERMS_URL", DEFAULT_TERMS_URL)
 
 # ========== UPI DETAILS ==========
 UPI_ID = os.getenv("UPI_ID", "bobbyahirwar@fam")
@@ -219,20 +217,28 @@ P_SCREEN = '🖼️'
 P_UTR = '🧾'
 
 # ========== URL HELPER ==========
-def fix_url(url):
-    if not url:
-        return DEFAULT_SUPPORT_URL
-    url = url.strip()
-    if not url.startswith(("http://", "https://")):
-        if url.startswith("t.me/") or url.startswith("@") or "t.me" in url:
-            if url.startswith("@"):
-                url = "t.me/" + url[1:]
-            elif not url.startswith("t.me/"):
-                url = "t.me/" + url
-            url = "https://" + url
-        else:
-            url = "https://" + url
-    return url
+def fix_url(url, fallback=None):
+    """Return a Telegram-safe HTTP(S) URL or a known-good fallback."""
+    fallback = DEFAULT_SUPPORT_URL if fallback is None else fallback
+    value = str(url or "").strip()
+    if not value:
+        return fallback
+    if value.startswith("@"):
+        value = "https://t.me/" + value[1:]
+    elif value.startswith("t.me/"):
+        value = "https://" + value
+    elif not value.startswith(("http://", "https://")):
+        value = "https://" + value
+    parsed = urlparse(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or not parsed.hostname
+        or "." not in parsed.hostname
+        or any(char.isspace() for char in value)
+    ):
+        return fallback
+    return value
 
 # ========== VALIDATE CONFIG ==========
 def validate_config():
@@ -446,19 +452,23 @@ def get_auto_cancel_seconds():
         return AUTO_CANCEL_SECONDS
 
 def get_terms_url():
-    return fix_url(get_setting("terms_url", TERMS_URL))
+    return fix_url(get_setting("terms_url", TERMS_URL), DEFAULT_TERMS_URL)
 
 def get_support_url():
     res = cur.execute("SELECT value FROM settings WHERE key='support_url'").fetchone()
     url = res[0] if res and res[0] else DEFAULT_SUPPORT_URL
-    return fix_url(url)
+    return fix_url(url, DEFAULT_SUPPORT_URL)
 
 def get_channel_links():
     """Return the current public channel links, with an admin-editable override."""
     raw = get_setting("channel_links")
-    if raw is None:
-        return JOIN_URLS
-    return [fix_url(item) for item in raw.split(",") if item.strip()]
+    values = JOIN_URLS if raw is None else raw.split(",")
+    links = []
+    for item in values:
+        link = fix_url(item, fallback="")
+        if link:
+            links.append(link)
+    return links
 
 def get_setting(key, default=None):
     row = cur.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
