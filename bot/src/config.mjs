@@ -9,7 +9,7 @@ export const config = {
   botToken: process.env.BOT_TOKEN?.trim() || "",
   termsUrl: process.env.TERMS_URL?.trim() || "",
   colorButtons: asBoolean(process.env.COLOR_BUTTONS, true),
-  port: Number.parseInt(process.env.PORT || "8080", 10) || 8080,
+  port: Number.parseInt(process.env.PORT || "8099", 10) || 8099,
   pushRoot: process.env.PUSH_ROOT?.trim() || "bot",
   pushRemoteRoot: process.env.PUSH_REMOTE_ROOT?.trim().replace(/^\/+|\/+$/g, "") || "bot",
   channels: [
