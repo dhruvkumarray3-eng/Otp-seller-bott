@@ -782,17 +782,20 @@ async def log_primary_purchase(uid, country, price, amount, year, qty):
 
 # ================= MENU HELPERS =================
 def get_persistent_menu(uid):
-    # Two-column layout mirrors the supplied seller-bot reference while every
-    # label remains mapped to an existing OTP seller action.
+    # Match the supplied seller-bot layout while keeping labels mapped to
+    # real actions or an explicit not-configured response.
     rows = [
         [KeyboardButton(colorize_button_text("🛒 Buy Account", "success")),
          KeyboardButton(colorize_button_text("💳 Deposit", "primary"))],
-        [KeyboardButton(colorize_button_text("📁 Buy Sessions", "success")),
-         KeyboardButton(colorize_button_text("📞 Support", "primary"))],
-        [KeyboardButton(colorize_button_text("✅ My Profile", "primary")),
-         KeyboardButton(colorize_button_text("📊 My Stats", "primary"))],
-        [KeyboardButton(colorize_button_text("🎁 Refer & Earn", "success")),
-         KeyboardButton(colorize_button_text("🏠 Start", "success"))]
+        [KeyboardButton(colorize_button_text("📁 Bot Repos", "primary")),
+         KeyboardButton(colorize_button_text("📣 SMM Services", "success"))],
+        [KeyboardButton(colorize_button_text("✅ Profile", "primary")),
+         KeyboardButton(colorize_button_text("📦 My Orders", "primary"))],
+        [KeyboardButton(colorize_button_text("💰 Balance", "success")),
+         KeyboardButton(colorize_button_text("🏆 Stock", "primary"))],
+        [KeyboardButton(colorize_button_text("👾 Refer", "success")),
+         KeyboardButton(colorize_button_text("💲 Support", "primary"))],
+        [KeyboardButton(colorize_button_text("🏠 Start", "success"))]
     ]
     if is_admin(uid):
         rows.append([KeyboardButton(colorize_button_text("🔐 Admin Panel", "danger"))])
@@ -2869,7 +2872,7 @@ async def handle_all_messages(e):
                 return await e.reply("✅ Banner added/replaced successfully.")
         if not text: return
 
-        if "Buy Account" in text or "Buy Sessions" in text or "Deposit" in text or "My Profile" in text or "My Stats" in text or "Support" in text or "Admin Panel" in text:
+        if any(label in text for label in ("Buy Account", "Buy Sessions", "Deposit", "Bot Repos", "SMM Services", "Profile", "My Orders", "Balance", "Stock", "Refer", "Support", "Start", "Admin Panel")):
             session_buy_state.pop(uid, None)
             deposit_input.pop(uid, None)
             admin_dep_state.pop(uid, None)
@@ -2967,11 +2970,16 @@ async def handle_all_messages(e):
             return
 
         if "Buy Account" in text: await show_countries(e, 'single', 1)
-        elif "Buy Sessions" in text: await show_countries(e, 'bulk', 1)
         elif "Deposit" in text: await deposit_menu(e)
-        elif "My Profile" in text: await profile_handler(e)
-        elif "My Stats" in text: await stats_handler(e)
-        elif "Refer & Earn" in text:
+        elif "Bot Repos" in text:
+            await e.reply(f"{P_PKG} <b>Bot Repos</b>\n\nThis section is not configured yet. Use <b>Buy Account</b> or <b>Stock</b> to browse the available OTP inventory.")
+        elif "SMM Services" in text:
+            await e.reply(f"{P_WARN} <b>SMM Services</b>\n\nSMM services are not configured in this bot yet. Contact support if you need help.", buttons=get_support_buttons())
+        elif "Profile" in text: await profile_handler(e)
+        elif "My Orders" in text or "My Stats" in text: await stats_handler(e)
+        elif "Balance" in text: await profile_handler(e)
+        elif "Stock" in text: await show_countries(e, 'single', 1)
+        elif "Refer" in text:
             me = await bot.get_me()
             ref_link = f"https://t.me/{me.username}?start=ref_{uid}" if me.username else "Referral link is unavailable until the bot has a public username."
             count = cur.execute("SELECT COUNT(*) FROM users WHERE referred_by=?", (uid,)).fetchone()[0]
