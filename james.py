@@ -118,7 +118,7 @@ REQUIRED_CHANNELS = env_list("REQUIRED_CHANNELS", os.getenv("CHECK_CHANNELS", "-
 JOIN_URLS = env_list("JOIN_URLS", "https://t.me/moviesmasterupdates")
 
 # ========== LINKS & MEDIA ==========
-DEFAULT_TERMS_URL = "https://james-xdd.github.io/Terms-And-Conditions/James.html"
+DEFAULT_TERMS_URL = "https://dhruvkumarray3-eng.github.io/Otp-seller-bott/Terms.html"
 TERMS_URL = os.getenv("TERMS_URL", DEFAULT_TERMS_URL)
 
 # ========== UPI DETAILS ==========
