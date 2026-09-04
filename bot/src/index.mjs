@@ -81,17 +81,28 @@ const answerCallback = (id, text = "") => telegram("answerCallbackQuery", {
 
 const ensurePrivate = (chat) => chat?.type === "private";
 
+const escapeHtml = (value) => String(value)
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;")
+  .replaceAll('"', "&quot;")
+  .replaceAll("'", "&#039;");
+
 const showTerms = (chatId, messageId) => {
   const payload = { text: termsText, replyMarkup: termsKeyboard() };
   return messageId ? edit(chatId, messageId, payload.text, payload.replyMarkup) : send(chatId, payload.text, payload.replyMarkup);
 };
 
 const showMenu = (chatId, messageId, firstName = "") => {
-  const greeting = firstName ? `, ${firstName}` : "";
-  const text = `🌈 <b>Welcome${greeting}!</b>
+  const greeting = firstName ? `, ${escapeHtml(firstName)}` : "";
+  const text = `💖 <b>Welcome${greeting} to Workflow Hub!</b>
 
-Your colorful GitHub workflow assistant is ready.
-Premium-style emojis and button colors are enabled by default.`;
+🎁 <b>Premium GitHub services:</b> Push authorized bot files to your repository safely.
+🎁 <b>Simple &amp; secure:</b> You choose when to push; the token is requested only during that workflow.
+📍 <b>Quick start:</b> Tap <b>🚀 Push to GitHub</b> to begin.
+👨‍💻 <b>Developer:</b> Workflow Assistant
+
+Choose an option below to continue.`;
   return messageId ? edit(chatId, messageId, text, mainKeyboard()) : send(chatId, text, mainKeyboard());
 };
 
@@ -190,7 +201,7 @@ const handleCallback = async (query) => {
   if (action === "terms:accept") {
     acceptedUsers.add(userId);
     sessions.delete(userId);
-    return edit(chatId, messageId, "✅ <b>Terms accepted.</b>\n\nYou can now use the GitHub workflow menu.", mainKeyboard());
+    return showMenu(chatId, messageId, query.from?.first_name);
   }
   if (!(await requireTerms(chatId, userId, messageId))) return;
   if (action === "menu") return showMenu(chatId, messageId, query.from?.first_name);
