@@ -560,11 +560,14 @@ def get_default_welcome(uid, pct, bot_username):
         if bot_username else
         f"{P_GLOBE} <i>Set a public bot username to enable referral links.</i>"
     )
-    return (f"{PE_HEART} <b>Welcome to Fresh Tg Store!</b>\n\n"
+    balance_row = cur.execute("SELECT balance FROM users WHERE user_id=?", (uid,)).fetchone()
+    balance = balance_row[0] if balance_row else 0
+    return (f"{PE_HEART} <b>Welcome to hiddenleafXvillage!</b>\n\n"
             f"{PE_GIFT} <b>Premium services:</b> Buy accounts, sessions, and top up instantly.\n"
             f"{P_GIFT} <b>Refer & Earn:</b>\nInvite friends and earn {pct}% of their deposits!\n"
             f"{ref_line}\n\n"
-            f"👨‍💻 <b>Developers:</b>\n@{SUPPORT_USERNAME_1} & @{SUPPORT_USERNAME_2}")
+            f"{P_MONEY} <b>Balance:</b> {P_INR}{balance}\n\n"
+            f"👨‍💻 <b>Developer:</b>\n@{SUPPORT_USERNAME_1} & @{SUPPORT_USERNAME_2}")
 
 def get_welcome_message(uid, pct, bot_username):
     saved = get_setting("welcome_message")
@@ -779,13 +782,17 @@ async def log_primary_purchase(uid, country, price, amount, year, qty):
 
 # ================= MENU HELPERS =================
 def get_persistent_menu(uid):
+    # Two-column layout mirrors the supplied seller-bot reference while every
+    # label remains mapped to an existing OTP seller action.
     rows = [
         [KeyboardButton(colorize_button_text("🛒 Buy Account", "success")),
-         KeyboardButton(colorize_button_text("👤 My Profile", "primary"))],
-        [KeyboardButton(colorize_button_text("📁 Buy Sessions", "success"))],
-        [KeyboardButton(colorize_button_text("💰 Deposit", "success")),
+         KeyboardButton(colorize_button_text("💳 Deposit", "primary"))],
+        [KeyboardButton(colorize_button_text("📁 Buy Sessions", "success")),
+         KeyboardButton(colorize_button_text("📞 Support", "primary"))],
+        [KeyboardButton(colorize_button_text("✅ My Profile", "primary")),
          KeyboardButton(colorize_button_text("📊 My Stats", "primary"))],
-        [KeyboardButton(colorize_button_text("📞 Support", "primary"))]
+        [KeyboardButton(colorize_button_text("🎁 Refer & Earn", "success")),
+         KeyboardButton(colorize_button_text("🏠 Start", "success"))]
     ]
     if is_admin(uid):
         rows.append([KeyboardButton(colorize_button_text("🔐 Admin Panel", "danger"))])
@@ -2964,6 +2971,12 @@ async def handle_all_messages(e):
         elif "Deposit" in text: await deposit_menu(e)
         elif "My Profile" in text: await profile_handler(e)
         elif "My Stats" in text: await stats_handler(e)
+        elif "Refer & Earn" in text:
+            me = await bot.get_me()
+            ref_link = f"https://t.me/{me.username}?start=ref_{uid}" if me.username else "Referral link is unavailable until the bot has a public username."
+            count = cur.execute("SELECT COUNT(*) FROM users WHERE referred_by=?", (uid,)).fetchone()[0]
+            await e.reply(f"{PE_GIFT} <b>Refer & Earn</b>\n\nInvite friends and earn from their deposits.\n\n{P_USERS} Referrals: <b>{count}</b>\n{P_GLOBE} <code>{ref_link}</code>")
+        elif "Start" in text: await send_main_menu(e, uid)
         elif "Support" in text: 
             await e.reply(f"{PE_ANGEL} <b>Fresh Tg Support & Relevant Information</b>\n\n{P_WARN} For support contact our developers:", buttons=get_support_buttons())
         elif "Admin Panel" in text: 
