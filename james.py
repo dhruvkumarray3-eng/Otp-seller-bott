@@ -26,7 +26,7 @@ from telethon.tl.types import ReplyKeyboardMarkup, KeyboardButtonRow, KeyboardBu
 from telethon.tl.functions.channels import GetParticipantRequest
 from telethon.tl.functions.account import GetPasswordRequest
 
-# ================= COLORFUL BUTTON SYSTEM =================
+# =============== COLORFUL BUTTON SYSTEM =================
 # Telegram does not expose button background colors to bots. We mirror the
 # reference bot's visual logic with clear color-coded emoji prefixes:
 # blue = navigation/info, green = actions/confirmation, red = cancel/destructive.
